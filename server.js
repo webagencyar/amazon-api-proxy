@@ -82,47 +82,28 @@ app.get('/api/amazon-book', async (req, res) => {
             });
         }
 
-        const host = 'webservices.amazon.com';
-        const uri = '/paapi5/getitems';
-        
-        // Cuerpo de la solicitud
-        const payload = {
-            "ItemIds": [asin],
-            "Resources": [
-                "ItemInfo.Title",
-                "ItemInfo.ByLineInfo",
-                "Images.Primary.Large"
-            ],
-            "PartnerTag": associateTag,
-            "PartnerType": "Associates"
-        };
+        const response = await fetch(`https://webservices.amazon.com${uri}`, {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+        'Host': host,
+        ...authHeaders
+    },
+    body: JSON.stringify(payload)
+});
 
-        // Generar encabezados de autorización
-        const authHeaders = generateAuthorizationHeader(
-            payload, 
-            host, 
-            uri, 
-            awsAccessKey, 
-            awsSecretKey,
-            associateTag
-        );
-
-        // Realizar la solicitud
-        const response = await fetch(`https://${host}${uri}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Host': host,
-                ...authHeaders
-            },
-            body: JSON.stringify(payload)
-        });
-        
-        if (!response.ok) {
-            // Obtener el cuerpo del error para más detalles
-            const errorBody = await response.text();
-            throw new Error(`Error ${response.status} de Amazon API: ${errorBody}`);
-        }
+if (!response.ok) {
+    const errorBody = await response.text();
+    console.error('Error completo de Amazon:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorBody,
+        url: `https://webservices.amazon.com${uri}`,
+        payload: payload,
+        headers: authHeaders
+    });
+    throw new Error(`Error ${response.status} de Amazon API: ${errorBody}`);
+}
         
         const data = await response.json();
         
@@ -162,6 +143,7 @@ const port = process.env.PORT || 10000;
 app.listen(port, () => {
     console.log(`Servidor backend iniciado en el puerto ${port}`);
 });
+
 
 
 
