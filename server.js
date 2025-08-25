@@ -11,33 +11,52 @@ app.use(cors());
 function generateAuthorizationHeader(payload, host, uri, awsAccessKey, awsSecretKey, associateTag) {
     const t = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
     
-    const parameters = {
-        'Action': 'GetItems',
-        'PartnerTag': associateTag,
-        'PartnerType': 'Associates',
-        'ItemIds': payload.ItemIds[0],
-        'Resources': 'ItemInfo.Title,ItemInfo.ByLineInfo,Images.Primary.Large'
-    };
+    // Crear el cuerpo de la solicitud
+    const payloadString = JSON.stringify(payload);
+    const payloadHash = crypto.createHash('sha256').update(payloadString).digest('hex');
     
-    // Crear la cadena de consulta
-    const queryString = new URLSearchParams(parameters).toString();
+    // Cabeceras para la firma
+    const canonicalHeaders = `host:${host}\nx-amz-date:${t}\n`;
+    const signedHeaders = 'host;x-amz-date';
+    
+    // Ruta de la API
+    const canonicalUri = uri;
+    
+    // Parámetros de consulta (vacío para POST)
+    const canonicalQueryString = '';
+    
+    // Método HTTP
+    const httpRequestMethod = 'POST';
+    
+    // Construir la cadena a firmar
+    const canonicalRequest = 
+        `${httpRequestMethod}\n` +
+        `${canonicalUri}\n` +
+        `${canonicalQueryString}\n` +
+        `${canonicalHeaders}\n` +
+        `${signedHeaders}\n` +
+        `${payloadHash}`;
+    
+    const credentialScope = `${t.substring(0, 8)}/us-east-1/ProductAdvertisingAPI/aws4_request`;
+    const stringToSign = 
+        `AWS4-HMAC-SHA256\n` +
+        `${t}\n` +
+        `${credentialScope}\n` +
+        `${crypto.createHash('sha256').update(canonicalRequest).digest('hex')}`;
     
     // Crear la firma
-    const stringToSign = `POST\n${uri}\n\nhost:${host}\nx-amz-date:${t}\n\nhost;x-amz-date\n${crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex')}`;
+    let kDate = crypto.createHmac('sha256', `AWS4${awsSecretKey}`).update(t.substring(0, 8)).digest();
+    let kRegion = crypto.createHmac('sha256', kDate).update('us-east-1').digest();
+    let kService = crypto.createHmac('sha256', kRegion).update('ProductAdvertisingAPI').digest();
+    let kSigning = crypto.createHmac('sha256', kService).update('aws4_request').digest();
+    let signature = crypto.createHmac('sha256', kSigning).update(stringToSign).digest('hex');
     
-    const dateKey = crypto.createHmac('sha256', `AWS4${awsSecretKey}`, { encoding: 'utf8' }).update(t.substring(0, 8)).digest();
-    const regionKey = crypto.createHmac('sha256', dateKey, { encoding: 'utf8' }).update('us-east-1').digest();
-    const serviceKey = crypto.createHmac('sha256', regionKey, { encoding: 'utf8' }).update('ProductAdvertisingAPI').digest();
-    const signingKey = crypto.createHmac('sha256', serviceKey, { encoding: 'utf8' }).update('aws4_request').digest();
-    
-    const signature = crypto.createHmac('sha256', signingKey, { encoding: 'utf8' })
-        .update(stringToSign)
-        .digest('hex');
-    
+    // Devolver los encabezados de autorización
     return {
-        'Authorization': `AWS4-HMAC-SHA256 Credential=${awsAccessKey}/${t.substring(0, 8)}/us-east-1/ProductAdvertisingAPI/aws4_request, SignedHeaders=host;x-amz-date, Signature=${signature}`,
+        'Authorization': `AWS4-HMAC-SHA256 Credential=${awsAccessKey}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
         'x-amz-date': t,
-        'x-amz-target': 'com.amazon.paapi5.v1.ProductAdvertisingAPIv1.GetItems'
+        'x-amz-content-sha256': payloadHash,
+        'content-type': 'application/json'
     };
 }
 
@@ -143,5 +162,6 @@ const port = process.env.PORT || 10000;
 app.listen(port, () => {
     console.log(`Servidor backend iniciado en el puerto ${port}`);
 });
+
 
 
