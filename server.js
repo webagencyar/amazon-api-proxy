@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-const fetch = require('node-fetch');
+const fetch = require('node-fetch'); // ¡ESTA LÍNEA FALTABA!
 const crypto = require('crypto');
 const cors = require('cors');
 const app = express();
@@ -143,3 +143,4 @@ const port = process.env.PORT || 10000;
 app.listen(port, () => {
     console.log(`Servidor backend iniciado en el puerto ${port}`);
 });
+
